@@ -51,6 +51,8 @@ def infoFromID(id):
 			s += child.attrib['name'].split(', ')[1] + " "
 			s += child.attrib['name'].split(', ')[0] + " "
 			s = s.replace("'","\\u0027")
+			s = "".join(i for i in s if ord(i)<128)
+
 	for child in rosters:
 		for plyr in child:
 			if plyr.attrib['id'] == id:
@@ -84,7 +86,9 @@ def processTrade(timestamp):
 			f1name = getFranchiseInfo(f1)
 			f2name = getFranchiseInfo(f2)
 			f1name = f1name.replace("'","\\u0027")
+			f1name = "".join(i for i in f1name if ord(i)<128)
 			f2name = f2name.replace("'","\\u0027")
+			f2name = "".join(i for i in f2name if ord(i)<128)
 			f1gave = child.attrib['franchise1_gave_up'].split(',')
 			f2gave = child.attrib['franchise2_gave_up'].split(',')
 			f1gave.pop()
