@@ -1,5 +1,12 @@
 import requests
 import json
+import re
+
+franchises_dict_g = {}
+
+def remove_html_from_string(s):
+    clean = re.compile('<.*?>')
+    return re.sub(clean, '', s)
 
 def https_request(url):
     headers = {
@@ -31,6 +38,19 @@ def get_trades():
     trades_json = https_request(s)
     return trades_json
 
+def get_league():
+    s = "https://www61.myfantasyleague.com/2020/export?TYPE=league&L=14095&JSON=1"
+
+    league_json_string = https_request(s)
+    league_json = json.loads(league_json_string)
+
+    franchises = (league_json["league"]["franchises"]["franchise"])
+
+    for franchise in franchises:
+        franchises_dict_g[franchise["id"]] = remove_html_from_string(franchise["name"])
+
+    # print(franchises_dict_g)
+
 def trade_print(trade):
     # print(trade)
     print("TRADE")
@@ -55,7 +75,13 @@ def process_trades(trades_json_string):
 
 def main():
     # get_rosters()
-    process_trades(get_trades())
+    # process_trades(get_trades())
+    get_league()
+    # league_json = json.loads(get_league())
+    # franchises = (league_json["league"]["franchises"]["franchise"])
+    # for franchise in franchises:
+    #     print(franchise["id"])
+    #     print(remove_html_from_string(franchise["name"]))
 
 
 if __name__ == "__main__":
