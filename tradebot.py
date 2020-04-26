@@ -1,8 +1,13 @@
 import requests
 import json
 import re
+import time
 
 franchises_dict_g = {}
+players_dict_g = {}
+
+def current_unix_timestamp():
+    return int(time.time())
 
 def remove_html_from_string(s):
     clean = re.compile('<.*?>')
@@ -51,6 +56,52 @@ def get_league():
 
     # print(franchises_dict_g)
 
+def get_players_from_MFL():
+    s = "https://www61.myfantasyleague.com/2020/export?TYPE=players&L=14095&JSON=1"
+
+    players_json_string = https_request(s)
+    players_json = json.loads(players_json_string)
+
+    players = players_json["players"]["player"]
+
+    for player in players:
+        players_dict_g[player["id"]] = player
+
+    players_dict_g["timestamp"] = str(current_unix_timestamp())
+    
+    with open('players.json', 'w') as f:
+        f.write(json.dumps(players_dict_g))
+
+def get_players():
+    # {
+    #     "position": "TMWR",
+    #     "name": "Bills, Buffalo",
+    #     "id": "0151",
+    #     "team": "BUF"
+    # }
+    # This should be scheduled to run once or twice every day
+
+    # Attempt to load from disk before making API call
+    global players_dict_g
+    if not players_dict_g:
+        try:
+            with open('players.json', 'r') as f:
+                players_dict_g = json.load(f)
+                print("Loaded players file")
+        except:
+            print("No players file: retrieving from MFL")
+
+    if not players_dict_g:
+        get_players_from_MFL()
+        return
+
+    print(players_dict_g["timestamp"])
+    if int(players_dict_g["timestamp"]) + 86400 < current_unix_timestamp():
+        print("Players file is stale, updating from MFL")
+        get_players_from_MFL()
+    
+
+
 def trade_print(trade):
     # print(trade)
     print("TRADE")
@@ -74,15 +125,12 @@ def process_trades(trades_json_string):
 
 
 def main():
-    # get_rosters()
-    # process_trades(get_trades())
+    get_rosters()
     get_league()
-    # league_json = json.loads(get_league())
-    # franchises = (league_json["league"]["franchises"]["franchise"])
-    # for franchise in franchises:
-    #     print(franchise["id"])
-    #     print(remove_html_from_string(franchise["name"]))
+    get_players()
+    process_trades(get_trades())
 
+    # print(players_dict_g)
 
 if __name__ == "__main__":
     main()
