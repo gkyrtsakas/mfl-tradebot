@@ -5,6 +5,7 @@ import time
 
 franchises_dict_g = {}
 players_dict_g = {}
+timestamp_g = 0
 
 def current_unix_timestamp():
     return int(time.time())
@@ -95,7 +96,8 @@ def get_players():
         get_players_from_MFL()
         return
 
-    print(players_dict_g["timestamp"])
+    print("MFL Players DB last updated:")
+    print(time.strftime("%d %b %Y %H:%M:%S %z", time.localtime(int(players_dict_g["timestamp"]))))
     if int(players_dict_g["timestamp"]) + 86400 < current_unix_timestamp():
         print("Players file is stale, updating from MFL")
         get_players_from_MFL()
@@ -141,37 +143,67 @@ def trade_asset_parser(assets):
             s += parse_player(asset)
     return s
 
-def trade_print(trade):
-    # print(trade)
-    print("TRADE")
-    print("%s gave up %s" % (trade["franchise"], trade["franchise1_gave_up"]))
-    print(trade_asset_parser(trade["franchise1_gave_up"]))
-    print("%s gave up %s" % (trade["franchise2"], trade["franchise2_gave_up"]))
-    print(trade_asset_parser(trade["franchise2_gave_up"]))
-    print("")
+def franchise_parser(franchise):
+    return franchises_dict_g[franchise]
+
+def update_timestamp(new_ts):
+    global timestamp_g
+    timestamp_g = new_ts
+    with open("timestamp", "w") as f:
+        f.write(str(timestamp_g))
+
+def load_timestamp():
+    global timestamp_g
+    try:
+        with open("timestamp", "r") as f:
+            s = f.read()
+            timestamp_g = int(s)
+    except:
+        print("No timestamp file...")
+
+def trade_parser(trade):
+    ts_int = int(trade["timestamp"])
+    if ts_int > timestamp_g:
+        update_timestamp(ts_int)
+    else:
+        #Trade already processed
+        print("trade already processed")
+        return None
+
+    s = ""
+
+    s += franchise_parser(trade["franchise"]) + " gave up:\n"
+    s += trade_asset_parser(trade["franchise1_gave_up"])
+
+    s += franchise_parser(trade["franchise2"]) + " gave up:\n"
+    s += trade_asset_parser(trade["franchise2_gave_up"])
+    return s
 
 def process_trades(trades_json_string):
-    trades_json = json.loads(trades_json_string)
-    trades = trades_json["transactions"]
-    # print(trades)
-    if (len(trades["transaction"]) == 1):
-        trade_print(trades["transaction"])
+    transactions_json = json.loads(trades_json_string)
+    transactions = transactions_json["transactions"]
+
+    if (len(transactions["transaction"]) == 1):
+        trade_parser(transactions["transaction"])
     else:
-        print("hi mom")
-        print(trades["transaction"])
-        for trade in trades["transaction"]:
-            trade_print(trade)
+        trades = transactions["transaction"]
+        trades.reverse()
+        for trade in trades:
+            ret = trade_parser(trade)
+            if ret:
+                #do some groupme stuff here
+                print("groupme API Call")
             
 
 
 
 def main():
+    load_timestamp()
     get_rosters()
     get_league()
     get_players()
     process_trades(get_trades())
 
-    # print(players_dict_g)
 
 if __name__ == "__main__":
     main()
