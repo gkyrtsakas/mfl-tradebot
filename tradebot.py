@@ -172,10 +172,10 @@ def trade_parser(trade):
 
     s = ""
 
-    s += franchise_parser(trade["franchise"]) + " gave up:\n"
+    s += franchise_parser(trade["franchise"]) + " trades:\n"
     s += trade_asset_parser(trade["franchise1_gave_up"])
 
-    s += franchise_parser(trade["franchise2"]) + " gave up:\n"
+    s += franchise_parser(trade["franchise2"]) + " trades:\n"
     s += trade_asset_parser(trade["franchise2_gave_up"])
     return s
 
@@ -193,8 +193,17 @@ def process_trades(trades_json_string):
             if ret:
                 #do some groupme stuff here
                 print("groupme API Call")
+                groupme_API_post_message(ret)
             
-
+def groupme_API_post_message(message):
+    url = "https://api.groupme.com/v3/bots/post"
+    data = {
+        "text": message,
+        "bot_id": "371d81362947c1569263584939"
+    }
+    
+    resp = requests.post(url, data=data)
+    print(resp.text)
 
 
 def main():
