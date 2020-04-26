@@ -101,12 +101,53 @@ def get_players():
         get_players_from_MFL()
     
 
+def parse_future_pick(asset):
+    asset_split = asset.split("_")
+    s = u'\u00b7' + " " + asset_split[2] + " " + asset_split[3]
+    if asset_split[3] == "1":
+        s += "st"
+    elif asset_split[3] == "2":
+        s += "nd"
+    elif asset_split[3] == "3":
+        s += "rd"
+    else:
+        s += "th"
+
+    s += "\n"    
+    return s
+    
+def parse_draft_pick(asset):
+    asset_split = asset.split("_")
+    rd = int(asset_split[1]) + 1
+    pick = int(asset_split[2]) + 1
+    s = u'\u00b7' + " " + str(rd) + "." + str(pick).zfill(2) + "\n"
+    return s
+
+def parse_player(asset):
+    player = players_dict_g[asset]
+    s = u'\u00b7' + " " + player["name"] + " " + player["team"] + " " + player["position"] + "\n"
+    return s
+
+def trade_asset_parser(assets):
+    s = ""
+    for asset in assets.split(","):
+        if asset == "":
+            continue
+        if asset[0] == "F":
+            s += parse_future_pick(asset)
+        elif asset[0] == "D":
+            s += parse_draft_pick(asset)
+        else:
+            s += parse_player(asset)
+    return s
 
 def trade_print(trade):
     # print(trade)
     print("TRADE")
     print("%s gave up %s" % (trade["franchise"], trade["franchise1_gave_up"]))
+    print(trade_asset_parser(trade["franchise1_gave_up"]))
     print("%s gave up %s" % (trade["franchise2"], trade["franchise2_gave_up"]))
+    print(trade_asset_parser(trade["franchise2_gave_up"]))
     print("")
 
 def process_trades(trades_json_string):
