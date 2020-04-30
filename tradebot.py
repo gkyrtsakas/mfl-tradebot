@@ -3,9 +3,15 @@ import json
 import re
 import time
 
+base_url = "https://www.myfantasyleague.com/"
+
 franchises_dict_g = {}
 players_dict_g = {}
 timestamp_g = 0
+league_id_g = ""
+groupme_bot_id_g = ""
+year_g = ""
+mfl_user_agent_g = ""
 
 def current_unix_timestamp():
     return int(time.time())
@@ -16,55 +22,39 @@ def remove_html_from_string(s):
 
 def https_request(url):
     headers = {
-        'User-Agent': 'Tradebot_User_Agent'
+        'User-Agent': mfl_user_agent_g
     }
 
     resp = requests.get(url, headers=headers)
-
     return resp.text
 
 def get_rosters():
-    s = "https://www61.myfantasyleague.com/2020/export?TYPE=rosters&L=14095&JSON=1"
-
+    s = base_url + year_g + "/export?TYPE=rosters&L=" + league_id_g + "&JSON=1"
     rosters_json = json.loads(https_request(s))
-
-    # print(rosters_json["encoding"])
-
     pretty_text = json.dumps(rosters_json, indent=4, sort_keys=True)
-
-    # print(resp.text)
-
     with open("rosters.json", "w") as text_file:
         text_file.write(pretty_text)
 
 
 def get_trades():
-    s = "https://www61.myfantasyleague.com/2020/export?TYPE=transactions&TRANS_TYPE=TRADE&L=14095&JSON=1"
-
+    s = base_url + year_g + "/export?TYPE=transactions&TRANS_TYPE=TRADE&DAYS=7&L=" + league_id_g + "&JSON=1"
     trades_json = https_request(s)
     return trades_json
 
 def get_league():
-    s = "https://www61.myfantasyleague.com/2020/export?TYPE=league&L=14095&JSON=1"
-
+    s = base_url + year_g + "/export?TYPE=league&L=" + league_id_g + "&JSON=1"
     league_json_string = https_request(s)
     league_json = json.loads(league_json_string)
-
     franchises = (league_json["league"]["franchises"]["franchise"])
-
     for franchise in franchises:
         franchises_dict_g[franchise["id"]] = remove_html_from_string(franchise["name"])
 
-    # print(franchises_dict_g)
 
 def get_players_from_MFL():
-    s = "https://www61.myfantasyleague.com/2020/export?TYPE=players&L=14095&JSON=1"
-
+    s = base_url + year_g + "/export?TYPE=players&L=" + league_id_g + "&JSON=1"
     players_json_string = https_request(s)
     players_json = json.loads(players_json_string)
-
     players = players_json["players"]["player"]
-
     for player in players:
         players_dict_g[player["id"]] = player
 
@@ -74,14 +64,6 @@ def get_players_from_MFL():
         f.write(json.dumps(players_dict_g))
 
 def get_players():
-    # {
-    #     "position": "TMWR",
-    #     "name": "Bills, Buffalo",
-    #     "id": "0151",
-    #     "team": "BUF"
-    # }
-    # This should be scheduled to run once or twice every day
-
     # Attempt to load from disk before making API call
     global players_dict_g
     if not players_dict_g:
@@ -183,15 +165,17 @@ def process_trades(trades_json_string):
     transactions_json = json.loads(trades_json_string)
     transactions = transactions_json["transactions"]
 
-    if (len(transactions["transaction"]) == 1):
-        trade_parser(transactions["transaction"])
+    if (len(transactions) == 1):
+        ret = trade_parser(transactions["transaction"])
+        if ret:
+            print("groupme API Call")
+            groupme_API_post_message(ret)
     else:
         trades = transactions["transaction"]
         trades.reverse()
         for trade in trades:
             ret = trade_parser(trade)
             if ret:
-                #do some groupme stuff here
                 print("groupme API Call")
                 groupme_API_post_message(ret)
             
@@ -199,19 +183,40 @@ def groupme_API_post_message(message):
     url = "https://api.groupme.com/v3/bots/post"
     data = {
         "text": message,
-        "bot_id": "371d81362947c1569263584939"
+        "bot_id": groupme_bot_id_g
     }
     
     resp = requests.post(url, data=data)
     print(resp.text)
 
+def load_config():
+    global league_id_g
+    global groupme_bot_id_g
+    global year_g
+    global mfl_user_agent_g
+
+    with open("config.json", "r") as f:
+        config = json.load(f)
+        league_id_g = config["league_id"]
+        groupme_bot_id_g = config["groupme_bot_id"]
+        year_g = config["year"]
+        mfl_user_agent_g = config["mfl_user_agent"]
+    
+    if not league_id_g or not groupme_bot_id_g or not year_g or not mfl_user_agent_g:
+        return False
+    else:
+        print("Loaded config.json...")
+        return True
 
 def main():
-    load_timestamp()
-    get_rosters()
-    get_league()
-    get_players()
-    process_trades(get_trades())
+    if load_config():
+        load_timestamp()
+        get_rosters()
+        get_league()
+        get_players()
+        process_trades(get_trades())
+    else:
+        print("Incorrect config.json options")
 
 
 if __name__ == "__main__":
