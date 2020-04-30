@@ -1,129 +1,223 @@
-import xml.etree.ElementTree as ET
-import os
+import requests
+import json
+import re
+import time
 
-tradeparse = ET.parse('transactions.xml')
-trades = tradeparse.getroot()
+base_url = "https://www.myfantasyleague.com/"
 
-leagueparse = ET.parse('league.xml')
-league = leagueparse.getroot()
+franchises_dict_g = {}
+players_dict_g = {}
+timestamp_g = 0
+league_id_g = ""
+groupme_bot_id_g = ""
+year_g = ""
+mfl_user_agent_g = ""
 
-playerparse = ET.parse('players.xml')
-players = playerparse.getroot()
+def current_unix_timestamp():
+    return int(time.time())
 
-rosterparse = ET.parse('rosters.xml')
-rosters = rosterparse.getroot()
+def remove_html_from_string(s):
+    clean = re.compile('<.*?>')
+    return re.sub(clean, '', s)
 
-try:
-	file = open("latest.trade", "r+")
-	ltrade = file.read(10)
-except:
-	file = open("latest.trade", "w")
-	file.close()
-	ltrade = 0
+def https_request(url):
+    headers = {
+        'User-Agent': mfl_user_agent_g
+    }
 
-def getFranchiseInfo(fnum):
-	for child in league:
-		if child.tag == "franchises":
-			f = child
-			for fchild in f:
-				if fchild.attrib['id'] == fnum:
-					if fchild.attrib['name'][0] == "<":
-						return "Franchise " + fchild.attrib['id']
-					else:
-						return fchild.attrib['name'][:20]
+    resp = requests.get(url, headers=headers)
+    return resp.text
 
-def tradesToProcess():
-	t = []
-	for child in trades:
-		if child.attrib['type'] == "TRADE":
-			if ltrade < child.attrib['timestamp']:
-				t.append(child.attrib['timestamp'])
-	return t
-
-def infoFromID(id):
-	s = ""
-	for child in players:
-		if child.attrib['id'] == str(id):
-			if child.attrib['name'] == '':
-				return "An amnesty"
-			s += child.attrib['team'] + " "
-			s += child.attrib['position'] + " "
-			s += child.attrib['name'].split(', ')[1] + " "
-			s += child.attrib['name'].split(', ')[0] + " "
-			s = s.replace("'","\\u0027")
-			s = "".join(i for i in s if ord(i)<128)
-
-	for child in rosters:
-		for plyr in child:
-			if plyr.attrib['id'] == id:
-				s += "($" + plyr.attrib['salary']
-				s += ", " + plyr.attrib['contractYear'] + " yrs)"
-
-	return s
-
-def parseGive(gave):
-	print gave
-	if len(gave) == 0:
-		print "derp"
-		return
-	if gave[0] == 'D': #this years pick
-		if int(gave.split('_')[2]) < 9:
-			return "%s.0%s" % (str(int(gave.split('_')[1]) + 1), str(int(gave.split('_')[2]) + 1))
-		else:
-			return "%s.%s" % (str(int(gave.split('_')[1]) + 1), str(int(gave.split('_')[2]) + 1))
-	elif gave[0] == 'F': #next years pick
-		return "%s (%s) %s" % (gave.split('_')[3], gave.split('_')[2], getFranchiseInfo(gave.split('_')[1]).replace("'","\\u0027")[:16])
-	else: #player
-		return infoFromID(gave)
+def get_rosters():
+    s = base_url + year_g + "/export?TYPE=rosters&L=" + league_id_g + "&JSON=1"
+    rosters_json = json.loads(https_request(s))
+    pretty_text = json.dumps(rosters_json, indent=4, sort_keys=True)
+    with open("rosters.json", "w") as text_file:
+        text_file.write(pretty_text)
 
 
-def processTrade(timestamp):
-	s = "**** TRADE ALERT ****\\n"
-	for child in trades:
-		if child.attrib['timestamp'] == timestamp:
-			f1 = child.attrib['franchise']
-			f2 = child.attrib['franchise2']
-			f1name = getFranchiseInfo(f1)
-			f2name = getFranchiseInfo(f2)
-			f1name = f1name.replace("'","\\u0027")
-			f1name = "".join(i for i in f1name if ord(i)<128)
-			f2name = f2name.replace("'","\\u0027")
-			f2name = "".join(i for i in f2name if ord(i)<128)
-			f1gave = child.attrib['franchise1_gave_up'].split(',')
-			f2gave = child.attrib['franchise2_gave_up'].split(',')
-			f1gave.pop()
-			f2gave.pop()
-			s += f1name + " gave up\\n\\n"
-			for part in f1gave:
-				s += str(parseGive(part)) + "\\n"
-			s += "\\n" + f2name + " gave up\\n\\n"
-			for part in f2gave:
-				s += str(parseGive(part)) + "\\n"
-			return s
+def get_trades():
+    s = base_url + year_g + "/export?TYPE=transactions&TRANS_TYPE=TRADE&DAYS=7&L=" + league_id_g + "&JSON=1"
+    trades_json = https_request(s)
+    return trades_json
 
-GROUPME_BOTID = ""
+def get_league():
+    s = base_url + year_g + "/export?TYPE=league&L=" + league_id_g + "&JSON=1"
+    league_json_string = https_request(s)
+    league_json = json.loads(league_json_string)
+    franchises = (league_json["league"]["franchises"]["franchise"])
+    for franchise in franchises:
+        franchises_dict_g[franchise["id"]] = remove_html_from_string(franchise["name"])
 
-def groupMe(s):
-	cmd = "curl -d '{\"text\" : \""
-	cmd += s
-	cmd += "\", \"bot_id\" : \""
-	cmd += GROUPME_BOTID
-	cmd += "\"}'"
-	cmd += " -H 'Content-Type: application/json' https://api.groupme.com/v3/bots/post"
-	print cmd
-	os.system(cmd)
 
-if __name__ == '__main__':
-	t = tradesToProcess()
-	for tr in reversed(t):
-		s = processTrade(tr)
-		groupMe(s)
-	if len(t) > 0:
-		file.close()
-		file = open("latest.trade", "w")
-		print "TRADE WAS PROCESSED"
-		print t[0]
-		file.write(t[0])
-		file.close()
-	else:
-		file.close()
+def get_players_from_MFL():
+    s = base_url + year_g + "/export?TYPE=players&L=" + league_id_g + "&JSON=1"
+    players_json_string = https_request(s)
+    players_json = json.loads(players_json_string)
+    players = players_json["players"]["player"]
+    for player in players:
+        players_dict_g[player["id"]] = player
+
+    players_dict_g["timestamp"] = str(current_unix_timestamp())
+    
+    with open('players.json', 'w') as f:
+        f.write(json.dumps(players_dict_g))
+
+def get_players():
+    # Attempt to load from disk before making API call
+    global players_dict_g
+    if not players_dict_g:
+        try:
+            with open('players.json', 'r') as f:
+                players_dict_g = json.load(f)
+                print("Loaded players file")
+        except:
+            print("No players file: retrieving from MFL")
+
+    if not players_dict_g:
+        get_players_from_MFL()
+        return
+
+    print("MFL Players DB last updated:")
+    print(time.strftime("%d %b %Y %H:%M:%S %z", time.localtime(int(players_dict_g["timestamp"]))))
+    if int(players_dict_g["timestamp"]) + 86400 < current_unix_timestamp():
+        print("Players file is stale, updating from MFL")
+        get_players_from_MFL()
+    
+
+def parse_future_pick(asset):
+    asset_split = asset.split("_")
+    s = u'\u00b7' + " " + asset_split[2] + " " + asset_split[3]
+    if asset_split[3] == "1":
+        s += "st"
+    elif asset_split[3] == "2":
+        s += "nd"
+    elif asset_split[3] == "3":
+        s += "rd"
+    else:
+        s += "th"
+
+    s += "\n"    
+    return s
+    
+def parse_draft_pick(asset):
+    asset_split = asset.split("_")
+    rd = int(asset_split[1]) + 1
+    pick = int(asset_split[2]) + 1
+    s = u'\u00b7' + " " + str(rd) + "." + str(pick).zfill(2) + "\n"
+    return s
+
+def parse_player(asset):
+    player = players_dict_g[asset]
+    s = u'\u00b7' + " " + player["name"] + " " + player["team"] + " " + player["position"] + "\n"
+    return s
+
+def trade_asset_parser(assets):
+    s = ""
+    for asset in assets.split(","):
+        if asset == "":
+            continue
+        if asset[0] == "F":
+            s += parse_future_pick(asset)
+        elif asset[0] == "D":
+            s += parse_draft_pick(asset)
+        else:
+            s += parse_player(asset)
+    return s
+
+def franchise_parser(franchise):
+    return franchises_dict_g[franchise]
+
+def update_timestamp(new_ts):
+    global timestamp_g
+    timestamp_g = new_ts
+    with open("timestamp", "w") as f:
+        f.write(str(timestamp_g))
+
+def load_timestamp():
+    global timestamp_g
+    try:
+        with open("timestamp", "r") as f:
+            s = f.read()
+            timestamp_g = int(s)
+    except:
+        print("No timestamp file...")
+
+def trade_parser(trade):
+    ts_int = int(trade["timestamp"])
+    if ts_int > timestamp_g:
+        update_timestamp(ts_int)
+    else:
+        #Trade already processed
+        print("trade already processed")
+        return None
+
+    s = ""
+
+    s += franchise_parser(trade["franchise"]) + " trades:\n"
+    s += trade_asset_parser(trade["franchise1_gave_up"])
+
+    s += franchise_parser(trade["franchise2"]) + " trades:\n"
+    s += trade_asset_parser(trade["franchise2_gave_up"])
+    return s
+
+def process_trades(trades_json_string):
+    transactions_json = json.loads(trades_json_string)
+    transactions = transactions_json["transactions"]
+
+    if (len(transactions) == 1):
+        ret = trade_parser(transactions["transaction"])
+        if ret:
+            print("groupme API Call")
+            groupme_API_post_message(ret)
+    else:
+        trades = transactions["transaction"]
+        trades.reverse()
+        for trade in trades:
+            ret = trade_parser(trade)
+            if ret:
+                print("groupme API Call")
+                groupme_API_post_message(ret)
+            
+def groupme_API_post_message(message):
+    url = "https://api.groupme.com/v3/bots/post"
+    data = {
+        "text": message,
+        "bot_id": groupme_bot_id_g
+    }
+    
+    resp = requests.post(url, data=data)
+    print(resp.text)
+
+def load_config():
+    global league_id_g
+    global groupme_bot_id_g
+    global year_g
+    global mfl_user_agent_g
+
+    with open("config.json", "r") as f:
+        config = json.load(f)
+        league_id_g = config["league_id"]
+        groupme_bot_id_g = config["groupme_bot_id"]
+        year_g = config["year"]
+        mfl_user_agent_g = config["mfl_user_agent"]
+    
+    if not league_id_g or not groupme_bot_id_g or not year_g or not mfl_user_agent_g:
+        return False
+    else:
+        print("Loaded config.json...")
+        return True
+
+def main():
+    if load_config():
+        load_timestamp()
+        get_rosters()
+        get_league()
+        get_players()
+        process_trades(get_trades())
+    else:
+        print("Incorrect config.json options")
+
+
+if __name__ == "__main__":
+    main()
