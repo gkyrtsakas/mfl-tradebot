@@ -165,9 +165,9 @@ def process_trades(trades_json_string):
     transactions_json = json.loads(trades_json_string)
     transactions = transactions_json["transactions"]
 
-    if len(transactions) == 0:
+    if len(transactions["transaction"]) == 0:
         return
-    elif len(transactions) == 1:
+    elif len(transactions["transaction"]) == 1:
         ret = trade_parser(transactions["transaction"])
         if ret:
             print("groupme API Call")
