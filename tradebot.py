@@ -163,19 +163,16 @@ def trade_parser(trade):
 
 def process_trades(trades_json_string):
     transactions_json = json.loads(trades_json_string)
-    transactions = transactions_json["transactions"]
+    transactions = transactions_json["transactions"]["transaction"]
 
-    if len(transactions["transaction"]) == 0:
-        return
-    elif len(transactions["transaction"]) == 1:
-        ret = trade_parser(transactions["transaction"])
+    if isinstance(transactions, dict):
+        ret = trade_parser(transactions)
         if ret:
             print("groupme API Call")
             groupme_API_post_message(ret)
-    else:
-        trades = transactions["transaction"]
-        trades.reverse()
-        for trade in trades:
+    elif isinstance(transactions, list):
+        transactions.reverse()
+        for trade in transactions:
             ret = trade_parser(trade)
             if ret:
                 print("groupme API Call")
