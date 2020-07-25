@@ -1,6 +1,8 @@
 {
     "league_id": "",
-    "groupme_bot_id": "",
+    "mfl_user_agent": "",
     "year": "",
-    "mfl_user_agent": ""
+    "groupme_bot_id": "",
+    "discord_channel": "",
+    "discord_key": ""
 }
