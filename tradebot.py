@@ -2,6 +2,8 @@ import requests
 import json
 import re
 import time
+import discord
+import asyncio
 
 base_url = "https://www.myfantasyleague.com/"
 
@@ -12,6 +14,9 @@ league_id_g = ""
 groupme_bot_id_g = ""
 year_g = ""
 mfl_user_agent_g = ""
+discord_key_g = ""
+discord_channel_g = ""
+chat_api_list_g = []
 
 def current_unix_timestamp():
     return int(time.time())
@@ -126,7 +131,7 @@ def trade_asset_parser(assets):
     return s
 
 def franchise_parser(franchise):
-    return franchises_dict_g[franchise]
+    return "**" + franchises_dict_g[franchise] + "**"
 
 def update_timestamp(new_ts):
     global timestamp_g
@@ -168,16 +173,16 @@ def process_trades(trades_json_string):
     if isinstance(transactions, dict):
         ret = trade_parser(transactions)
         if ret:
-            print("groupme API Call")
-            groupme_API_post_message(ret)
+            print("API Call(s)")
+            call_APIs(ret)
     elif isinstance(transactions, list):
         transactions.reverse()
         for trade in transactions:
             ret = trade_parser(trade)
             if ret:
-                print("groupme API Call")
-                groupme_API_post_message(ret)
-            
+                print("API Call(s)")
+                call_APIs(ret)
+
 def groupme_API_post_message(message):
     url = "https://api.groupme.com/v3/bots/post"
     data = {
@@ -188,11 +193,36 @@ def groupme_API_post_message(message):
     resp = requests.post(url, data=data)
     print(resp.text)
 
+def discord_API_post_message(message):
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    client = discord.Client()
+    formatted_message = "-------------------------------------------\n" + message + "-------------------------------------------\n"
+
+    @client.event
+    async def on_ready():
+        print(f'{client.user} has connected to Discord!')
+        guild = client.guilds[0]
+        for channel in guild.channels:
+            if channel.name == discord_channel_g:
+                await channel.send(content=formatted_message)
+                await client.close()
+
+    client.run(discord_key_g)
+
+def call_APIs(message):
+    if "discord" in chat_api_list_g:
+        discord_API_post_message(message)
+    if "groupme" in chat_api_list_g:
+        groupme_API_post_message(message)
+
 def load_config():
     global league_id_g
     global groupme_bot_id_g
     global year_g
     global mfl_user_agent_g
+    global discord_key_g
+    global discord_channel_g
+    global chat_api_list_g
 
     with open("config.json", "r") as f:
         config = json.load(f)
@@ -200,8 +230,20 @@ def load_config():
         groupme_bot_id_g = config["groupme_bot_id"]
         year_g = config["year"]
         mfl_user_agent_g = config["mfl_user_agent"]
+        discord_key_g = config["discord_key"]
+        discord_channel_g = config["discord_channel"]
     
-    if not league_id_g or not groupme_bot_id_g or not year_g or not mfl_user_agent_g:
+    if not league_id_g or not year_g or not mfl_user_agent_g:
+        print("config.json missing mfl league information")
+    
+    if groupme_bot_id_g:
+        chat_api_list_g.append("groupme")
+
+    if discord_key_g and discord_channel_g:
+        chat_api_list_g.append("discord")
+
+    if not chat_api_list_g:
+        print("No chat clients provided (groupme/discord) in config.json... exiting")
         return False
     else:
         print("Loaded config.json...")
