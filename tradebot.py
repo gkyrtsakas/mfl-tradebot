@@ -17,6 +17,7 @@ mfl_user_agent_g = ""
 discord_key_g = ""
 discord_channel_g = ""
 chat_api_list_g = []
+rosters_json_g = None
 
 def current_unix_timestamp():
     return int(time.time())
@@ -34,11 +35,9 @@ def https_request(url):
     return resp.text
 
 def get_rosters():
+    global rosters_json_g
     s = base_url + year_g + "/export?TYPE=rosters&L=" + league_id_g + "&JSON=1"
-    rosters_json = json.loads(https_request(s))
-    pretty_text = json.dumps(rosters_json, indent=4, sort_keys=True)
-    with open("rosters.json", "w") as text_file:
-        text_file.write(pretty_text)
+    rosters_json_g = json.loads(https_request(s))
 
 
 def get_trades():
@@ -112,9 +111,23 @@ def parse_draft_pick(asset):
     s = u'\u00b7' + " " + str(rd) + "." + str(pick).zfill(2) + "\n"
     return s
 
+def round_to_dollar(amt):
+    return str(int(round(float(amt), 0)))
+
+def get_player_contract_details(player):
+    franchises = rosters_json_g["rosters"]["franchise"]
+    for franchise in franchises:
+        for roster_player in franchise["player"]:
+            if roster_player["id"] == player["id"]:
+                return "($" + round_to_dollar(roster_player["salary"]) + ", " + roster_player["contractYear"] + "yr)\n"
+    return "\n"
+
+
 def parse_player(asset):
     player = players_dict_g[asset]
-    s = u'\u00b7' + " " + player["name"] + " " + player["team"] + " " + player["position"] + "\n"
+    print(player)
+    s = u'\u00b7' + " " + player["name"] + " " + player["team"] + " " + player["position"] + " "
+    s += get_player_contract_details(player)
     return s
 
 def trade_asset_parser(assets):
@@ -224,7 +237,9 @@ def load_config():
     global discord_channel_g
     global chat_api_list_g
 
-    with open("config.json", "r") as f:
+    config_file = "config.json"
+
+    with open(config_file, "r") as f:
         config = json.load(f)
         league_id_g = config["league_id"]
         groupme_bot_id_g = config["groupme_bot_id"]
@@ -246,7 +261,7 @@ def load_config():
         print("No chat clients provided (groupme/discord) in config.json... exiting")
         return False
     else:
-        print("Loaded config.json...")
+        print("Loaded " + config_file + "...")
         return True
 
 def main():
