@@ -1,0 +1,4 @@
+0.1.0
+- Added version and changelog
+- Updated MFL API url
+- Added config through environment variables
