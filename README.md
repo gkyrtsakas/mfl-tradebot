@@ -1,6 +1,6 @@
 # MFL Trade Bot
 
-Scrape trades from MyFantasyLeague and post them to GroupMe.
+Scrape trades from MyFantasyLeague and post them to GroupMe/Discord.
 
 ## Dependencies
 * Python 3.x
@@ -17,6 +17,22 @@ Scrape trades from MyFantasyLeague and post them to GroupMe.
 is the listed in your league's URL:
 
 e.g. https://www.myfantasyleague.com/**_year_**/home/**_leagueID_**#0...
+
+**OR** 
+
+Set the following environment variables:
+
+TB_LID=yourMFLleagueID
+
+TB_MFL_UA=yourMFLuserAgent
+
+TB_YEAR=leagueYear
+
+TB_GRPME_BID=yourGroupMeBotID
+
+TB_DISC_KEY=yourDiscordBotToken
+
+TB_DISC_CHANNEL=yourDiscordChannelTheBotWillPostTo
 
 **5.** Create a cronjob to run *tradebot.py* once every 5 minutes.
 

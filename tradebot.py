@@ -4,8 +4,9 @@ import re
 import time
 import discord
 import asyncio
+import os
 
-base_url = "https://www.myfantasyleague.com/"
+base_url = "https://api.myfantasyleague.com/"
 
 franchises_dict_g = {}
 players_dict_g = {}
@@ -18,6 +19,10 @@ discord_key_g = ""
 discord_channel_g = ""
 chat_api_list_g = []
 rosters_json_g = None
+
+def get_os_env_var(env_var):
+    return os.environ.get(env_var)
+
 
 def current_unix_timestamp():
     return int(time.time())
@@ -181,6 +186,8 @@ def trade_parser(trade):
 
 def process_trades(trades_json_string):
     transactions_json = json.loads(trades_json_string)
+    if len(transactions_json["transactions"]) == 0:
+        return # no trades to process
     transactions = transactions_json["transactions"]["transaction"]
 
     if isinstance(transactions, dict):
@@ -238,6 +245,7 @@ def load_config():
     global chat_api_list_g
 
     config_file = "config.json"
+    loaded_from_file = True
 
     with open(config_file, "r") as f:
         config = json.load(f)
@@ -249,7 +257,16 @@ def load_config():
         discord_channel_g = config["discord_channel"]
     
     if not league_id_g or not year_g or not mfl_user_agent_g:
-        print("config.json missing mfl league information")
+        loaded_from_file = False
+        league_id_g = get_os_env_var("TB_LID")
+        groupme_bot_id_g = get_os_env_var("TB_GRPME_BID")
+        year_g = get_os_env_var("TB_YEAR")
+        mfl_user_agent_g = get_os_env_var("TB_MFL_UA")
+        discord_key_g = get_os_env_var("TB_DISC_KEY")
+        discord_channel_g = get_os_env_var("TB_DISC_CHAN")
+
+    if not league_id_g or not year_g or not mfl_user_agent_g:
+        print("config.json/environment missing mfl league information")
     
     if groupme_bot_id_g:
         chat_api_list_g.append("groupme")
@@ -261,7 +278,10 @@ def load_config():
         print("No chat clients provided (groupme/discord) in config.json... exiting")
         return False
     else:
-        print("Loaded " + config_file + "...")
+        if loaded_from_file:
+            print("Loaded config from " + config_file + "")
+        else:
+            print("Loaded config from environment")
         return True
 
 def main():
