@@ -209,8 +209,7 @@ def groupme_API_post_message(message):
         "text": message,
         "bot_id": groupme_bot_id_g
     }
-    
-    resp = requests.post(url, data=data)
+    resp = requests.post(url, json=data)
     print(resp.text)
 
 def discord_API_post_message(message):
